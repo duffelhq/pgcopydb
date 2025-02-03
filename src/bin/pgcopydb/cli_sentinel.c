@@ -130,6 +130,7 @@ cli_sentinel_getopts(int argc, char **argv)
 		{ "flush-lsn", no_argument, NULL, 'f' },
 		{ "replay-lsn", no_argument, NULL, 'r' },
 		{ "current", no_argument, NULL, 'C' },
+		{ "filters", required_argument, NULL, 'F' },
 		{ "json", no_argument, NULL, 'J' },
 		{ "version", no_argument, NULL, 'V' },
 		{ "verbose", no_argument, NULL, 'v' },
@@ -229,6 +230,20 @@ cli_sentinel_getopts(int argc, char **argv)
 			{
 				options.sentinelOptions.currentLSN = true;
 				log_trace("--current");
+				break;
+			}
+
+			case 'F':
+			{
+				strlcpy(options.filterFileName, optarg, MAXPGPATH);
+				log_trace("--filters \"%s\"", options.filterFileName);
+
+				if (!file_exists(options.filterFileName))
+				{
+					log_error("Filters file \"%s\" does not exists",
+							  options.filterFileName);
+					++errors;
+				}
 				break;
 			}
 
@@ -735,6 +750,18 @@ cli_sentinel_init_specs(CopyDataSpec *copySpecs)
 	{
 		/* errors have already been logged */
 		exit(EXIT_CODE_INTERNAL_ERROR);
+	}
+
+	if (!IS_EMPTY_STRING_BUFFER(sentinelDBoptions.filterFileName))
+	{
+		SourceFilters *filters = &(copySpecs->filters);
+
+		if (!parse_filters(sentinelDBoptions.filterFileName, filters))
+		{
+			log_error("Failed to parse filters in file \"%s\"",
+					  sentinelDBoptions.filterFileName);
+			exit(EXIT_CODE_BAD_ARGS);
+		}
 	}
 
 	if (!catalog_init_from_specs(copySpecs))
